@@ -2,7 +2,6 @@ package main
 
 import (
 	// "fmt"
-	"ecc"
 	"encoding/json"
 	"errors"
 	"log"
@@ -10,7 +9,10 @@ import (
 	"path/filepath"
 	"sort"
 	"strconv"
-	"vm"
+	"crypto/sha256"
+	"math"
+	
+	"github.com/ethereum/go-ethereum/crypto/secp256k1"
 )
 
 /***
@@ -173,18 +175,61 @@ func ValidateTransaction(tx *Transaction) bool {
         return false // Insufficient input value
     }
 
-    // Validate each input signature and script
-    for i, in := range tx.Vin {
+    // Signature Validation
+    for i := range tx.Vin {
         if !validateInputSignature(tx, i) {
             return false // Invalid signature
         }
+    }
 
+    // Script Execution
+    for i := range tx.Vin {
         if !validateInputScript(tx, i) {
             return false // Invalid script
         }
     }
 
+    // Locktime Check
+    if tx.Locktime > int(math.MaxInt32) {
+        return false // Locktime too high
+    }
+
+    // Signature Operation Limit Check
+    // if countSignatureOperations(tx) > MAX_SIGNATURE_OPERATIONS {
+    //     return false // Too many signature operations
+    // }
+
+    // Assuming all checks passed, mark transaction as valid
+    tx.Valid = true
     return true
+}
+
+func validateInputSignature(tx *Transaction, inputIndex int) bool {
+    // prevOutScript := tx.Vin[inputIndex].PrevOut.ScriptPubKey
+    signature := tx.Vin[inputIndex].ScriptSig
+
+    publicKey, err := extractPublicKey(tx, inputIndex)
+    if err != nil {
+        return false // Error extracting public key
+    }
+
+    txHash := sha256.Sum256([]byte(tx.Txid))
+    signatureBytes := []byte(signature)
+    publicKeyBytes := publicKey
+
+    // Use secp256k1 library to verify the signature
+    return secp256k1.VerifySignature(publicKeyBytes, txHash[:], signatureBytes)
+}
+
+func validateInputScript(tx *Transaction, inputIndex int) bool {
+    prevOutScript := tx.Vin[inputIndex].PrevOut.ScriptPubKey
+    scriptSig := tx.Vin[inputIndex].ScriptSig
+
+    // Implement script execution logic here
+    // You can use a script interpreter library like btcsuite/btcd/wire/script
+    // or implement the basic script execution logic manually
+
+    return true // Placeholder, replace with actual script execution
 }
 
 func extractPublicKey(tx *Transaction, inputIndex int) ([]byte, error) {
@@ -203,35 +248,6 @@ func extractPublicKey(tx *Transaction, inputIndex int) ([]byte, error) {
 
     // Script doesn't contain a public key or witness data
     return nil, errors.New("public key not found")
-}
-
-// Validates the signature of an input
-func validateInputSignature(tx *Transaction, inputIndex int) bool {
-    // Get the previous output scriptPubKey
-    prevOutScript := tx.Vin[inputIndex].PrevOut.ScriptPubKey
-
-    // Extract the signature from the input's scriptSig
-    signature := tx.Vin[inputIndex].ScriptSig
-
-    // Extract the public key from the input's scriptSig or witness
-    publicKey := extractPublicKey(tx, inputIndex)
-
-    // Verify the signature using the appropriate algorithm
-    switch prevOutScript[0] {
-    case OP_DUP: // P2PKH scriptPubKey
-        return ecc.VerifySignature(publicKey, signature, tx.Txid, inputIndex, tx.Version)
-    case OP_HASH160: // P2SH scriptPubKey
-        return ecc.VerifySignature(publicKey, signature, tx.Txid, inputIndex, tx.Version)
-    // ... add cases for other script types
-    default:
-        return false // Unsupported script type
-    }
-}
-
-// Validates the script of an input
-func validateInputScript(tx *Transaction, inputIndex int) bool {
-    // Execute the input's scriptSig against the previous output's scriptPubKey
-    return vm.ExecuteScript(tx.Vin[inputIndex].ScriptSig, tx.Vin[inputIndex].PrevOut.ScriptPubKey)
 }
 
 /**
