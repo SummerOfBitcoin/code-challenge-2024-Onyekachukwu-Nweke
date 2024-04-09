@@ -1,3 +1,3 @@
-module github.com/SummerOfBitcoin/code-challenge-2024-Onyekachukwu-Nweke
+module sob2024_onyeka
 
 go 1.21.4

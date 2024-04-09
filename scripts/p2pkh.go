@@ -8,9 +8,10 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math/big"
+	
 )
 
-func P2PKH_validate(tx []*transaction) bool {
+func Validate_p2pkh(tx transaction) bool {
 	if len(tx.Vin > 0) {
 		// Decode the scriptPubKey
 	scriptPubKeyBytes, _ := hex.DecodeString(tx.Vin[0].PrevOut.ScriptPubKey)
@@ -33,7 +34,6 @@ func P2PKH_validate(tx []*transaction) bool {
 		return false
 	}
 }
-
 
 func verifySignature(scriptPubKey []byte, signature []byte, publicKey []byte) bool {
 // Parse the public key
